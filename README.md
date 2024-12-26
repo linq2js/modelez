@@ -258,6 +258,76 @@ const BlogListWithSuspense = () => {
 };
 ```
 
+### Dependency Injection with Container
+
+```ts
+import { container } from "modelez";
+import { useExternalHook } from "./externalHook";
+import { ExternalComponent } from "./externalComponent";
+
+// Create a named container for dependency injection
+export const dependencies = container().named({
+  ExternalComponent,
+  useExternalHook,
+});
+
+export const MyComp = () => {
+  const result = dependencies.useExternalHook(); // Use the injected hook
+
+  if (result) {
+    return <dependencies.ExternalComponent />; // Render the injected component
+  }
+
+  return null;
+};
+```
+
+#### Unit Testing Example
+
+```tsx
+import { dependencies, MyComp } from "./myComp";
+import { render } from "@testing-library/react";
+
+describe("MyComp", () => {
+  let restore: VoidFunction;
+
+  beforeEach(() => {
+    // Backup the current dependencies before mocking
+    restore = dependencies.$container.backup();
+  });
+
+  afterEach(() => {
+    // Restore the original dependencies after each test
+    restore?.();
+  });
+
+  it("should render ExternalComponent if result = true", () => {
+    // Mocking useExternalHook to return true
+    dependencies.useExternalHook = () => true;
+
+    // Mocking ExternalComponent to render a simple div
+    dependencies.ExternalComponent = () => <div>ok</div>;
+
+    // Render the component
+    const { getByText } = render(<MyComp />);
+
+    // Verify that "ok" text is displayed
+    getByText("ok");
+  });
+
+  it("should not render ExternalComponent if result = false", () => {
+    // Mocking useExternalHook to return false
+    dependencies.useExternalHook = () => false;
+
+    // Render the component
+    const { queryByText } = render(<MyComp />);
+
+    // Verify that "ok" text is not displayed
+    expect(queryByText("ok")).toBeNull();
+  });
+});
+```
+
 ---
 
 ## API Reference
@@ -284,11 +354,3 @@ Tracks dependencies and re-runs the callback when they change.
 ### `resource(initializer: Function)`
 
 Creates a reactive async resource.
-
----
-
-## Why Modelez?
-
-Modelez bridges the gap between simplicity and flexibility, making it easy to build dynamic, scalable, and responsive applications in both VanillaJS and React. Whether you're building a simple app or a complex system, Modelez adapts to your needs.
-
-Start building with Modelez today! 🚀
