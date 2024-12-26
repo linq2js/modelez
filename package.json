@@ -1,7 +1,7 @@
 {
   "name": "modelez",
   "description": "A lightweight reactive state management library for Vanilla JavaScript and React, offering dynamic reactivity, async resource handling, and seamless integration with modern web apps.",
-  "version": "0.2.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
