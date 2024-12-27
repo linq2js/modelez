@@ -4,6 +4,7 @@ import { isLazy, isType } from "./utils";
 import { createInstance } from "./createInstance";
 import { createInMemoryStorage } from "./createInMemoryStorage";
 import { CONTAINER_LAZY_PROP, MODEL_CONTAINER_SYMBOL } from "./symbols";
+import { MapEx } from "./mapEx";
 
 const EMPTY_LIST: any[] = [];
 
@@ -154,7 +155,7 @@ export const createContainer = Object.assign(
 
       backup() {
         const prevRegistry = registry;
-        const newRegistry: typeof registry = new Map(registry);
+        const newRegistry: typeof registry = new MapEx(registry);
         return () => {
           if (newRegistry === registry) {
             registry = prevRegistry;

@@ -197,23 +197,34 @@ export type ModelContext = {
   use<T extends ModelProps, K>(type: ModelType<T, K>, key: K): ModelInstance<T>;
 
   use<A extends any[], T>(
-    logic: (context: ModelContext, ...args: A) => T
+    extension: SyncModelExtension<A, T>
   ): (...args: A) => T;
 
   use<A extends any[], T>(
-    loadFnPromise: Promise<{
-      default: (context: ModelContext) => (...args: A) => T;
+    loadExtensionPromise: Promise<{
+      default: AsyncModelExtension<A, T>;
     }>
   ): (...args: A) => Promise<Awaited<T>>;
 } & ModelContainer;
+
+export type SyncModelExtension<A extends any[], T> = (
+  context: ModelContext,
+  ...args: A
+) => T;
+
+export type AsyncModelExtension<A extends any[], T> = (
+  context: ModelContext
+) => (...args: A) => T;
 
 export type ModelType<P extends ModelProps, K = void> = {
   readonly name: string;
   readonly builder: (context: ModelContext, key: K) => P;
 };
 
+export type StorageCollection = Record<string, Storage> & { default: Storage };
+
 export type ModelContainer = {
-  readonly storages: Record<string, Storage> & { default: Storage };
+  readonly storages: StorageCollection;
 
   /**
    *
@@ -290,3 +301,15 @@ export type ModelContainer = {
 };
 
 export type Lazy = { name: string };
+
+export type ReadonlyProps<TProps> = {
+  [key in keyof TProps as key extends `set${infer TRest}`
+    ? TRest extends Capitalize<TRest>
+      ? never
+      : TRest
+    : key]: TProps[key];
+};
+
+export type ReadonlyModel<TModel> = TModel extends ModelType<infer P>
+  ? ReadonlyProps<P>
+  : never;

@@ -1,10 +1,10 @@
-import { isPromiseLike } from './async';
-import { callbackGroup } from './callbackGroup';
-import { createComputedState } from './createComputedState';
-import { createEffect, createWatcher } from './createEffect';
-import { createResource } from './createResource';
-import { createStaticState } from './createStaticState';
-import { MODEL_INSTANCE_SYMBOL } from './symbols';
+import { isPromiseLike } from "./async";
+import { callbackGroup } from "./callbackGroup";
+import { createComputedState } from "./createComputedState";
+import { createEffect, createWatcher } from "./createEffect";
+import { createResource } from "./createResource";
+import { createStaticState } from "./createStaticState";
+import { MODEL_INSTANCE_SYMBOL } from "./symbols";
 import {
   AnyFunc,
   ModelContext,
@@ -13,15 +13,45 @@ import {
   ModelType,
   MutableResource,
   MutableState,
-} from './types';
-import { isType, lazy, noop } from './utils';
+  StorageCollection,
+} from "./types";
+import { isType, lazy, noop } from "./utils";
 
+const STORAGE_SEP = ":";
 const UNDEFINED_GETTER = () => undefined; // Placeholder for undefined properties
 const NORMAL_FUNC_PROP_COUNT = Object.getOwnPropertyDescriptors(
   () => {}
 ).length; // Number of properties in a normal function
 
-export type ModelLifecycle = 'pre-init' | 'init' | 'ready' | 'disposed';
+export type ModelLifecycle = "pre-init" | "init" | "ready" | "disposed";
+
+function getStorageAccessor(
+  typeName: string,
+  storages: StorageCollection,
+  stateKey: string
+) {
+  const parts = stateKey.split(STORAGE_SEP);
+  const [storageName, storageKey] =
+    parts.length > 1 ? [parts[0], parts[1]] : ["default", parts[0]];
+  if (storageName in storages) {
+    const fullStorageKey = `${typeName}/${storageKey}`;
+
+    const storage = storages[storageName];
+    return {
+      exist() {
+        return storage.has(fullStorageKey);
+      },
+      get() {
+        return storage.get(fullStorageKey);
+      },
+      set(value: any) {
+        storage.set(fullStorageKey, value);
+      },
+    };
+  }
+
+  throw new Error(`No storage named '${storageName}' found`);
+}
 
 /**
  * Creates an instance of a model, manages its lifecycle, state, and resources.
@@ -45,31 +75,7 @@ export function createInstance(
   /** Manages initialization callbacks */
   const initNotifier = callbackGroup();
   const childContainer = lazy(createChildContainer, (x) => x.deleteAll());
-  let phase: ModelLifecycle = 'pre-init';
-
-  const getStorageAccessor = (key: string) => {
-    const parts = key.split(':');
-    const [storageName, storageKey] =
-      parts.length > 1 ? [parts[0], parts[1]] : ['default', parts[0]];
-    if (storageName in container.storages) {
-      const fullStorageKey = `${type.name}/${storageKey}`;
-
-      const storage = container.storages[storageName];
-      return {
-        exist() {
-          return storage.has(fullStorageKey);
-        },
-        get() {
-          return storage.get(fullStorageKey);
-        },
-        set(value: any) {
-          storage.set(fullStorageKey, value);
-        },
-      };
-    }
-
-    throw new Error(`No storage named '${storageName}' found`);
-  };
+  let phase: ModelLifecycle = "pre-init";
 
   /**
    * Context provided to the model builder for managing its state, resources, and effects.
@@ -106,9 +112,9 @@ export function createInstance(
      * @returns A mutable resource object.
      */
     resource(...args: any[]) {
-      if (phase !== 'pre-init') {
+      if (phase !== "pre-init") {
         throw new Error(
-          'The resource can be initialized during the pre-init phase'
+          "The resource can be initialized during the pre-init phase"
         );
       }
 
@@ -117,8 +123,12 @@ export function createInstance(
       let autoLoad = false;
 
       // Handle persisted resource
-      if (typeof args[0] === 'string') {
-        const storageAccessor = getStorageAccessor(args[0] as string);
+      if (typeof args[0] === "string") {
+        const storageAccessor = getStorageAccessor(
+          type.name,
+          container.storages,
+          args[0] as string
+        );
 
         // Load initial value from storage if available
         if (storageAccessor.exist()) {
@@ -127,7 +137,7 @@ export function createInstance(
           };
         }
 
-        if (typeof args[2] === 'function') {
+        if (typeof args[2] === "function") {
           resource = createResource(args[1], args[2], initial);
         } else {
           resource = createResource({}, args[1], initial);
@@ -135,7 +145,7 @@ export function createInstance(
 
         // Persist changes back to storage when resource is updated
         resource.subscribe((loadable) => {
-          if (loadable.status === 'succeeded') {
+          if (loadable.status === "succeeded") {
             storageAccessor.set(loadable.value);
           }
         });
@@ -148,7 +158,7 @@ export function createInstance(
           const promise = args[0];
           autoLoad = true;
           loadFn = () => promise;
-        } else if (typeof args[0] === 'function') {
+        } else if (typeof args[0] === "function") {
           loadFn = args[0];
         } else {
           [dependencies, loadFn] = args;
@@ -176,16 +186,20 @@ export function createInstance(
      * @returns A mutable state object.
      */
     state(...args: any[]) {
-      if (phase !== 'pre-init') {
+      if (phase !== "pre-init") {
         throw new Error(
-          'The state can be initialized during the pre-init phase'
+          "The state can be initialized during the pre-init phase"
         );
       }
       let state: MutableState<any>;
 
-      if (typeof args[0] === 'string' && args.length > 1) {
+      if (typeof args[0] === "string" && args.length > 1) {
         const [storageKey, initialValue] = args;
-        const storageAccessor = getStorageAccessor(storageKey);
+        const storageAccessor = getStorageAccessor(
+          type.name,
+          container.storages,
+          storageKey
+        );
         const persistedValue = storageAccessor.exist()
           ? storageAccessor.get()
           : initialValue;
@@ -194,7 +208,7 @@ export function createInstance(
         state.subscribe((nextValue) => {
           storageAccessor.set(nextValue);
         });
-      } else if (typeof args[1] === 'function') {
+      } else if (typeof args[1] === "function") {
         const [dependencies, computeFn] = args;
         state = createComputedState(dependencies, computeFn);
       } else {
@@ -213,10 +227,10 @@ export function createInstance(
      * @param listener - The callback to execute when the event occurs.
      */
     on(event, listener): any {
-      if (event === 'init') {
+      if (event === "init") {
         return initNotifier(listener);
       }
-      if (event === 'dispose') {
+      if (event === "dispose") {
         return disposeNotifier(listener);
       }
       return noop;
@@ -249,8 +263,8 @@ export function createInstance(
    * Disposes of the model instance and its resources.
    */
   const dispose = () => {
-    if (phase === 'disposed') return;
-    phase = 'disposed';
+    if (phase === "disposed") return;
+    phase = "disposed";
     childContainer.dispose();
     onDispose();
     disposeNotifier.invokeAndClear();
@@ -264,9 +278,9 @@ export function createInstance(
     {
       get(_, prop) {
         if (prop === MODEL_INSTANCE_SYMBOL) return true;
-        if (typeof prop !== 'string') return undefined;
-        if (prop === 'init') return undefined;
-        if (prop === 'dispose') return dispose;
+        if (typeof prop !== "string") return undefined;
+        if (prop === "init") return undefined;
+        if (prop === "dispose") return dispose;
 
         let getter = getters.get(prop);
 
@@ -280,7 +294,7 @@ export function createInstance(
           if (descriptor.get) {
             getter = () => descriptor.get?.call(instance);
           } else if (
-            typeof descriptor.value === 'function' &&
+            typeof descriptor.value === "function" &&
             Object.getOwnPropertyDescriptors(descriptor.value).length ===
               NORMAL_FUNC_PROP_COUNT
           ) {
@@ -314,8 +328,8 @@ export function createInstance(
   ) as ModelInstance<any>;
 
   const originalProps = type.builder(context, key);
-  phase = 'init';
-  const keys = Object.keys(originalProps).concat('dispose');
+  phase = "init";
+  const keys = Object.keys(originalProps).concat("dispose");
   const descriptors = Object.getOwnPropertyDescriptors(originalProps);
 
   return [
@@ -326,7 +340,7 @@ export function createInstance(
        */
       init() {
         initNotifier.invokeAndClear();
-        phase = 'ready';
+        phase = "ready";
       },
 
       /**

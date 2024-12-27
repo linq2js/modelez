@@ -328,6 +328,69 @@ describe("MyComp", () => {
 });
 ```
 
+### Inheritance with Local Containers
+
+This example demonstrates how to use local containers in Modelez to implement inheritance-like composition. A base model, AnimalModel, provides shared properties (e.g., species, sound) and behaviors (makeSound). Derived models like DogModel extend the base functionality by adding specific states (breed) and behaviors (fetch). Each instance of the derived models uses an isolated instance of the base model, ensuring state encapsulation and preventing conflicts between instances. This approach mimics inheritance while leveraging the flexibility and modularity of reactive models. 🚀
+
+```ts
+import { container, model } from "modelez";
+
+// Define the base Animal model
+const AnimalModel = model("animal", ({ state }) => {
+  const species = state("Unknown"); // Reactive state for species
+  const sound = state("Silent"); // Reactive state for sound
+
+  return {
+    species,
+    sound,
+    setSpecies(value: string) {
+      species(value);
+    },
+    setSound(value: string) {
+      sound(value);
+    },
+    makeSound() {
+      return `${species()} makes a '${sound()}' sound.`;
+    },
+  };
+});
+
+// Define the Dog model that "inherits" from Animal
+const DogModel = model("dog", ({ use, state }) => {
+  // Use Animal locally
+  const { species, sound, makeSound, setSpecies, setSound } = use(AnimalModel);
+  const breed = state("Unknown Breed"); // Additional state for Dog
+
+  setSpecies("Dog");
+  setSound("Bark");
+
+  return {
+    // export some Animal's props
+    species,
+    sound,
+    makeSound,
+
+    // export Dog's props
+    breed,
+    setBreed(value: string) {
+      breed(value);
+    },
+    fetch() {
+      return `${species()} fetches the ball!`;
+    },
+  };
+});
+
+const app = container();
+
+const dog = app.get(DogModel);
+dog.setBreed("Golden Retriever");
+
+console.log(dog.makeSound()); // Dog makes a 'Bark' sound.
+console.log(dog.fetch()); // Dog fetches the ball!
+console.log(`Breed: ${dog.breed()}`); // Breed: Golden Retriever
+```
+
 ---
 
 ## API Reference
